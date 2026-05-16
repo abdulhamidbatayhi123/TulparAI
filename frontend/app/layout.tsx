@@ -31,6 +31,17 @@ export const metadata: Metadata = {
   description:
     "Doğrulanmış, kişiselleştirilmiş AI antrenör + diyetisyen. " +
     "Türksat altyapısında, NVIDIA Nemotron ile. Halüsinasyon yok, kaynak gösterir.",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: "/icon.png",
+  },
+  openGraph: {
+    title: "TulparAI 🐎 Doğrulanmış Spor AI",
+    description: "Aynı motor. Dört spor. Sıfır halüsinasyon.",
+    images: ["/logo.jpeg"],
+  },
 };
 
 export default function RootLayout({

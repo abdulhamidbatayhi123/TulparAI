@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   Plus, UserCog, UploadCloud, PanelLeft,
   Trash2, Image as ImageIcon, Mic, Send,
@@ -277,8 +278,16 @@ export default function Home() {
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-primary via-primary to-primary/80 flex items-center justify-center text-primary-foreground shadow-sm ring-1 ring-primary/30">
-              <span className="font-display text-lg font-medium italic leading-none translate-y-[1px]">T</span>
+            <div className="relative w-9 h-9 rounded-lg overflow-hidden ring-1 ring-border bg-white flex items-center justify-center shadow-sm">
+              {/* The Pegasus mark — red on white, works on both themes thanks to the small white card. */}
+              <Image
+                src="/logo.jpeg"
+                alt="TulparAI logosu"
+                width={36}
+                height={36}
+                className="object-contain"
+                priority
+              />
             </div>
             <h1 className="font-display text-2xl font-medium tracking-tight text-foreground whitespace-nowrap leading-none">
               Tulpar<span className="italic text-primary">AI</span>
@@ -480,6 +489,22 @@ export default function Home() {
           {messages.length === 0 ? (
             /* Welcome Screen — the hero moment of the demo */
             <div className="flex-1 flex flex-col items-center justify-center max-w-3xl mx-auto w-full px-2">
+              {/* Pegasus mark — the brand at hero scale */}
+              <div className="relative mb-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700">
+                <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-1 ring-border bg-white flex items-center justify-center shadow-sm">
+                  <Image
+                    src="/logo.jpeg"
+                    alt="TulparAI"
+                    width={96}
+                    height={96}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+                {/* Subtle glow ring behind the mark */}
+                <div className="absolute inset-0 -z-10 rounded-2xl bg-primary/20 blur-2xl motion-safe:animate-pulse" />
+              </div>
+
               {/* Eyebrow tag */}
               <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-primary">
                 <Sparkles className="w-3 h-3" />
