@@ -39,8 +39,12 @@ Response language: English.
 Recent conversation: {history_summary}
 
 TOOL USAGE (VERY IMPORTANT)
-You have 6 tools (search_sport_kb, get_food_macros, calc_macros, get_weather,
-log_session, web_search_trusted). Before any factual claim, call the relevant tool.
+You have 7 tools (search_sport_kb, get_food_macros, calc_macros, get_weather,
+log_session, web_search_trusted, analyze_image). Before any factual claim, call
+the relevant tool.
+
+NOTE: when calling search_sport_kb, OMIT the `language` parameter — the embedder
+is multilingual and a Turkish query will retrieve English chunks natively.
 
 Examples:
 - "What to eat pre-match?" → search_sport_kb(sport, "pre-match nutrition")

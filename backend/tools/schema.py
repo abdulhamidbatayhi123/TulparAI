@@ -32,11 +32,6 @@ TOOL_SCHEMAS: list[dict] = [
                         "type": "string",
                         "description": "What you want to find out. Be specific."
                     },
-                    "language": {
-                        "type": "string",
-                        "enum": ["tr", "en"],
-                        "description": "Filter to this language only (optional)."
-                    },
                     "top_k": {
                         "type": "integer",
                         "description": "Number of passages to return (default 5)."

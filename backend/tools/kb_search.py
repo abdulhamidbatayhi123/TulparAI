@@ -59,22 +59,31 @@ def search(
         return []
 
     # ChromaDB metadata filter: by default require matching sport.
-    # If athlete_id is provided, ALSO include this athlete's personal docs
-    # (they were tagged with both `sport` and `athlete_id` at ingest time).
-    where: Dict[str, Any] = {"sport": sport}
-    if language in ("tr", "en"):
-        # Chroma v1+ requires $and for multiple top-level filters
-        where = {"$and": [{"sport": sport}, {"lang": language}]}
-
+    # Language is intentionally NOT filtered by default — the multilingual
+    # embedder (nv-embedqa-e5-v5) retrieves cross-lingually (TR query ↔ EN
+    # chunks). Filtering by language would zero-out results when the corpus
+    # is mostly EN, even though the query is TR. We retry with a language
+    # filter only as a refinement if the user explicitly passed one AND it
+    # still returns results.
     coll = _coll()
     raw = coll.query(
         query_embeddings=[query_vec],
         n_results=settings.top_k_retrieval,
-        where=where,
+        where={"sport": sport},
     )
 
     documents = (raw.get("documents") or [[]])[0]
     metadatas = (raw.get("metadatas") or [[]])[0]
+
+    # Optional same-language refinement: if the caller asked for a specific
+    # language AND chunks in that language exist for this sport, narrow down.
+    # Otherwise keep the broader cross-lingual result set.
+    if language in ("tr", "en") and documents:
+        same_lang_idx = [i for i, m in enumerate(metadatas) if m.get("lang") == language]
+        if same_lang_idx:
+            documents = [documents[i] for i in same_lang_idx]
+            metadatas = [metadatas[i] for i in same_lang_idx]
+
     if not documents:
         return []
 

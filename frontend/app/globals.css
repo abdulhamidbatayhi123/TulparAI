@@ -4,7 +4,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-fraunces), "Times New Roman", Cambria, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "JetBrains Mono", "Fira Code", monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -119,18 +121,66 @@
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground;
     background-attachment: fixed;
+    position: relative;
   }
 
-  /* Dark-mode body gets a premium radial wash */
+  /* Editorial-grade grain overlay — subtle, fixed, theme-aware.
+     Uses a CSS-only SVG fractal noise so we don't ship a PNG.
+     Opacity is intentionally low (8% dark / 4% light) — the eye should
+     register texture but never the dots. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.08;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  :root:not(.dark) body::before {
+    opacity: 0.04;
+  }
+
+  /* Dark-mode body gets a premium radial wash anchored to brand red */
   .dark body {
     background-image:
-      radial-gradient(circle at 50% 0%, oklch(0.25 0.12 28 / 0.18) 0%, transparent 50%),
-      radial-gradient(circle at 0% 100%, oklch(0.20 0.10 28 / 0.12) 0%, transparent 50%);
+      radial-gradient(ellipse 80% 60% at 50% -10%, oklch(0.32 0.18 28 / 0.22) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.22 0.12 28 / 0.14) 0%, transparent 60%),
+      radial-gradient(circle at 0% 50%, oklch(0.18 0.08 28 / 0.08) 0%, transparent 40%);
   }
   /* Light-mode body gets a faint warm wash so it doesn't feel sterile */
   :root:not(.dark) body {
     background-image:
-      radial-gradient(circle at 50% 0%, oklch(0.97 0.02 28 / 0.6) 0%, transparent 60%),
-      radial-gradient(circle at 100% 100%, oklch(0.97 0.02 28 / 0.4) 0%, transparent 60%);
+      radial-gradient(ellipse 80% 60% at 50% -10%, oklch(0.96 0.04 28 / 0.7) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.95 0.03 28 / 0.5) 0%, transparent 60%);
+  }
+
+  /* Display utility used by titles + brand mark.
+     Fraunces shines at this tracking — slightly tight, never loose. */
+  .font-display {
+    font-family: var(--font-fraunces), "Times New Roman", Cambria, Georgia, serif;
+    font-feature-settings: "ss01" on, "ss02" on, "ss03" on, "liga" on;
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+  }
+
+  /* Custom scrollbar — slim, brand-aware */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(from var(--border) l c h / 0.6);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(from var(--primary) l c h / 0.5);
+    background-clip: padding-box;
   }
 }
