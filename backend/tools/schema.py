@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Any
 
-from backend.tools import kb_search, food_macros, calc_macros, weather, logger, web_search
+from backend.tools import kb_search, food_macros, calc_macros, weather, logger, web_search, vision
 
 TOOL_SCHEMAS: list[dict] = [
     {
@@ -147,6 +147,33 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_image",
+            "description": (
+                "Analyze an attached image (meal photo, injury, training/form, body composition) "
+                "via a vision-language model. Use this when the athlete attaches an image. "
+                "For meal photos, follow this up with get_food_macros() per item identified. "
+                "For injuries always say a medical professional should evaluate."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "image": {
+                        "type": "string",
+                        "description": "Image as data URL, raw base64, or http(s) URL. The orchestrator pre-fills this from the chat request — you usually pass the literal string {{attached_image}}.",
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "What you want to know about the image (e.g. 'list foods + estimated grams').",
+                    },
+                    "language": {"type": "string", "enum": ["tr", "en"]},
+                },
+                "required": ["image", "prompt"],
+            },
+        },
+    },
 ]
 
 
@@ -158,6 +185,7 @@ DISPATCH: Dict[str, Callable[..., Any]] = {
     "get_weather":          weather.get,
     "log_session":          logger.write,
     "web_search_trusted":   web_search.search,
+    "analyze_image":        vision.analyze,
 }
 
 

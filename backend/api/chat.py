@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     athlete_id: str
     message: str
     language: str = "tr"
+    image_base64: str | None = None  # optional inline image — analyzed via vision tool
 
 
 def _sse(payload: dict) -> str:
@@ -48,6 +49,7 @@ def chat_stream(req: ChatRequest):
                 athlete_id=req.athlete_id,
                 profile=profile,
                 history=history,
+                image_base64=req.image_base64,
             ):
                 if event.get("type") == "done":
                     event["latency_ms"] = int((time.time() - t0) * 1000)

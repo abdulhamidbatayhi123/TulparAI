@@ -18,7 +18,7 @@ def test_every_schema_has_required_fields():
         assert "parameters" in fn and "properties" in fn["parameters"]
 
 
-def test_six_tools_exposed():
+def test_seven_tools_exposed():
     names = {t["function"]["name"] for t in TOOL_SCHEMAS}
     assert names == {
         "search_sport_kb",
@@ -27,6 +27,7 @@ def test_six_tools_exposed():
         "get_weather",
         "log_session",
         "web_search_trusted",
+        "analyze_image",
     }
 
 

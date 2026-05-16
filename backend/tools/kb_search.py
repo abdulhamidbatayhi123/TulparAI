@@ -34,14 +34,17 @@ def search(
     query: str,
     language: str | None = None,
     top_k: int = 5,
+    athlete_id: str | None = None,
 ) -> List[Dict[str, Any]]:
     """Sport-filtered RAG with cross-encoder rerank.
 
     Args:
-      sport:    one of football / wrestling / weightlifting / volleyball
-      query:    natural-language query
-      language: optional filter — only return chunks matching this language ("tr" or "en")
-      top_k:    return at most this many reranked results
+      sport:      one of football / wrestling / weightlifting / volleyball
+      query:      natural-language query
+      language:   optional filter — only return chunks matching this language ("tr" or "en")
+      top_k:      return at most this many reranked results
+      athlete_id: if provided, ALSO returns this athlete's personal uploaded docs
+                  (their personal docs are stored with `athlete_id` metadata)
 
     Returns:
       list of dicts with keys: text, score, sport, source_name, source_url, lang, chunk_id
@@ -55,7 +58,9 @@ def search(
     if not query_vec:
         return []
 
-    # ChromaDB metadata filter: always require matching sport
+    # ChromaDB metadata filter: by default require matching sport.
+    # If athlete_id is provided, ALSO include this athlete's personal docs
+    # (they were tagged with both `sport` and `athlete_id` at ingest time).
     where: Dict[str, Any] = {"sport": sport}
     if language in ("tr", "en"):
         # Chroma v1+ requires $and for multiple top-level filters

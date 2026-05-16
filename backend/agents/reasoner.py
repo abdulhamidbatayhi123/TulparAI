@@ -68,6 +68,7 @@ def reason(
     language: str = "tr",
     on_tool_call: Callable[[str, dict, str, int], None] | None = None,
     on_token: Callable[[str], None] | None = None,  # reserved for future streaming
+    image_base64: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Run the tool-using reasoner loop.
 
@@ -95,9 +96,35 @@ def reason(
         )
         msg = resp.choices[0].message
 
-        # No more tool calls → this is the final answer
+        # No more tool calls → final answer. If a streaming callback was
+        # supplied, RE-ISSUE the request with stream=True so tokens flow to
+        # the UI instead of arriving as one batch. This is the
+        # "perceived speed" optimisation.
         tool_calls = msg.tool_calls or []
         if not tool_calls:
+            if on_token:
+                # Re-run, this time streaming (no tools — we know none are needed)
+                try:
+                    stream_resp = chat(
+                        messages=messages,
+                        model=settings.nemotron_reasoner,
+                        temperature=0.3,
+                        max_tokens=2000,
+                        stream=True,
+                    )
+                    parts: list[str] = []
+                    for chunk in stream_resp:
+                        if not chunk.choices:
+                            continue
+                        delta = chunk.choices[0].delta
+                        token = (getattr(delta, "content", None) or "")
+                        if token:
+                            parts.append(token)
+                            on_token(token)
+                    return "".join(parts), tool_trace
+                except Exception:
+                    # Fall back to the non-streamed answer
+                    pass
             content = (msg.content or "") or (getattr(msg, "reasoning_content", "") or "")
             return content, tool_trace
 
@@ -126,6 +153,15 @@ def reason(
             except json.JSONDecodeError:
                 args = {}
 
+            # IMAGE INJECTION: if the model called analyze_image but used a
+            # placeholder/empty value for `image`, swap in the real base64 that
+            # was attached to the chat request. The LLM never sees the blob.
+            if name == "analyze_image" and image_base64:
+                if not args.get("image") or args.get("image") in (
+                    "{{attached_image}}", "attached", "user_image", "<image>",
+                ):
+                    args["image"] = image_base64
+
             t0 = time.time()
             try:
                 fn = DISPATCH.get(name)
@@ -139,13 +175,18 @@ def reason(
                 result = {"error": f"{type(e).__name__}: {e}"}
             ms = int((time.time() - t0) * 1000)
 
-            tool_trace.append({"tool": name, "args": args, "result": result, "ms": ms})
+            # Build a redacted args view (drop huge image base64 strings)
+            args_for_trace = dict(args)
+            if name == "analyze_image" and len(str(args_for_trace.get("image", ""))) > 200:
+                args_for_trace["image"] = "<image bytes redacted>"
+
+            tool_trace.append({"tool": name, "args": args_for_trace, "result": result, "ms": ms})
 
             if on_tool_call:
                 summary = json.dumps(result, ensure_ascii=False, default=str)
                 if len(summary) > 200:
                     summary = summary[:200] + "..."
-                on_tool_call(name, args, summary, ms)
+                on_tool_call(name, args_for_trace, summary, ms)
 
             # Feed the tool result back to the model
             result_text = json.dumps(result, ensure_ascii=False, default=str)
