@@ -86,6 +86,45 @@ export async function addLog(
   return r.json();
 }
 
+export type UploadResponse = {
+  ok: boolean;
+  athlete_id: string;
+  filename: string;
+  chunks_indexed: number;
+  sport_tag: string;
+  text_length: number;
+};
+
+/** Upload a personal document (PDF/HTML/TXT/MD) for the athlete — adds to per-athlete RAG. */
+export async function uploadDocument(
+  athleteId: string,
+  file: File,
+  topic = "personal"
+): Promise<UploadResponse> {
+  const fd = new FormData();
+  fd.append("athlete_id", athleteId);
+  fd.append("topic", topic);
+  fd.append("file", file);
+  const r = await fetch(`${BASE}/upload`, { method: "POST", body: fd });
+  if (!r.ok) throw new Error(`Upload failed (${r.status}): ${await r.text()}`);
+  return r.json();
+}
+
+export type PersonalDoc = {
+  source_name: string;
+  chunks: number;
+  ingested_at?: string;
+};
+
+export async function listPersonalDocs(athleteId: string): Promise<{
+  athlete_id: string;
+  files: PersonalDoc[];
+}> {
+  const r = await fetch(`${BASE}/upload/${athleteId}`);
+  if (!r.ok) throw new Error(`List docs failed (${r.status})`);
+  return r.json();
+}
+
 /* -------------------------------------------------------------------------- */
 /*  SSE chat                                                                   */
 /* -------------------------------------------------------------------------- */

@@ -9,10 +9,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  openChatStream, getHealth, fileToBase64,
+  openChatStream, getHealth, fileToBase64, getProfile, listPersonalDocs,
   type ChatStreamEvent, type Source, type ToolCall,
 } from "@/lib/api";
 import { startVoice, isVoiceSupported, type VoiceHandle } from "@/lib/speech";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ProfileDialog } from "@/components/ProfileDialog";
+import { UploadDialog } from "@/components/UploadDialog";
 import { AgentBadges } from "@/components/AgentBadges";
 import { ToolCallChip } from "@/components/ToolCallChip";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -43,6 +46,8 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const [modelInfo, setModelInfo] = useState<string>("");
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+  const [personalDocCount, setPersonalDocCount] = useState<number>(0);
   const [pendingImage, setPendingImage] = useState<{ b64: string; preview: string; name: string } | null>(null);
   const [voiceState, setVoiceState] = useState<"idle" | "listening">("idle");
   const endRef = useRef<HTMLDivElement>(null);
@@ -59,6 +64,15 @@ export default function Home() {
       })
       .catch(() => setBackendOnline(false));
   }, []);
+
+  // Load profile + personal doc count whenever athlete changes (or after edits)
+  const refreshProfile = () => {
+    getProfile(ATHLETE_ID).then(setProfile).catch(() => setProfile(null));
+    listPersonalDocs(ATHLETE_ID)
+      .then((r) => setPersonalDocCount(r.files?.length || 0))
+      .catch(() => setPersonalDocCount(0));
+  };
+  useEffect(() => { refreshProfile(); }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -252,53 +266,59 @@ export default function Home() {
           {/* Athlete Profile */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Athlete Profile
+              Sporcu Profili
             </h3>
             <div className="p-3 rounded-lg bg-background border border-border">
               <div className="mb-2">
                 <h4 className="text-sm font-semibold text-foreground">
-                  Ahmet Yılmaz
+                  {(profile?.name as string) || "—"}
                 </h4>
-                <p className="text-xs text-muted-foreground">
-                  Football · Striker · Süper Lig
+                <p className="text-xs text-muted-foreground capitalize">
+                  {profile ? (
+                    <>
+                      {(profile.sport as string) || "?"}
+                      {(() => {
+                        const sp = profile.sport_profile as Record<string, unknown> | undefined;
+                        const detail = sp?.position || sp?.weight_class;
+                        return detail ? ` · ${detail}` : "";
+                      })()}
+                      {(profile.training_phase as string)
+                        ? ` · ${profile.training_phase as string}`
+                        : ""}
+                    </>
+                  ) : "Yükleniyor..."}
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="w-full text-xs h-8 gap-2"
-                disabled
-              >
-                <UserCog className="w-3.5 h-3.5" />
-                Edit Profile (soon)
-              </Button>
+              <ProfileDialog athleteId={ATHLETE_ID} onSaved={refreshProfile}>
+                <Button variant="secondary" size="sm" className="w-full text-xs h-8 gap-2">
+                  <UserCog className="w-3.5 h-3.5" />
+                  Profili Düzenle
+                </Button>
+              </ProfileDialog>
             </div>
           </div>
 
           {/* Knowledge Base */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Knowledge Base
+              Bilgi Tabanı
             </h3>
             <div className="flex gap-2">
               <div className="flex-1 p-2 rounded-lg bg-background border border-border flex flex-col items-center">
-                <span className="text-lg font-bold text-foreground">4</span>
-                <span className="text-[10px] text-muted-foreground uppercase">Sports</span>
-              </div>
-              <div className="flex-1 p-2 rounded-lg bg-background border border-border flex flex-col items-center">
-                <span className="text-lg font-bold text-foreground">6</span>
+                <span className="text-lg font-bold text-foreground">7</span>
                 <span className="text-[10px] text-muted-foreground uppercase">Tools</span>
               </div>
+              <div className="flex-1 p-2 rounded-lg bg-background border border-border flex flex-col items-center">
+                <span className="text-lg font-bold text-foreground">{personalDocCount}</span>
+                <span className="text-[10px] text-muted-foreground uppercase">Senin Dök.</span>
+              </div>
             </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="w-full text-xs h-8 gap-2"
-              disabled
-            >
-              <UploadCloud className="w-3.5 h-3.5" />
-              Upload Document (soon)
-            </Button>
+            <UploadDialog athleteId={ATHLETE_ID} onUploaded={refreshProfile}>
+              <Button variant="secondary" size="sm" className="w-full text-xs h-8 gap-2">
+                <UploadCloud className="w-3.5 h-3.5" />
+                Doküman Yükle
+              </Button>
+            </UploadDialog>
           </div>
 
           {/* Recents */}
@@ -350,7 +370,8 @@ export default function Home() {
               TulparAI Sports Assistant
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
