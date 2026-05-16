@@ -17,10 +17,10 @@ from backend.config import settings
 from backend.i18n import get_prompts
 from backend.tools.schema import TOOL_SCHEMAS, DISPATCH
 
-MAX_TOOL_ITERATIONS = 5
+MAX_TOOL_ITERATIONS = 3   # was 5 — tighter cap = faster demos (3 is enough for most flows)
 # Cap each tool result by chars before feeding back into the conversation so we
 # don't blow the model's context window.
-MAX_TOOL_RESULT_CHARS = 4000
+MAX_TOOL_RESULT_CHARS = 3000   # was 4000 — tighter context = faster generation
 
 
 def _build_profile_block(profile: dict) -> str:
@@ -96,36 +96,21 @@ def reason(
         )
         msg = resp.choices[0].message
 
-        # No more tool calls → final answer. If a streaming callback was
-        # supplied, RE-ISSUE the request with stream=True so tokens flow to
-        # the UI instead of arriving as one batch. This is the
-        # "perceived speed" optimisation.
+        # No more tool calls → final answer
         tool_calls = msg.tool_calls or []
         if not tool_calls:
-            if on_token:
-                # Re-run, this time streaming (no tools — we know none are needed)
-                try:
-                    stream_resp = chat(
-                        messages=messages,
-                        model=settings.nemotron_reasoner,
-                        temperature=0.3,
-                        max_tokens=2000,
-                        stream=True,
-                    )
-                    parts: list[str] = []
-                    for chunk in stream_resp:
-                        if not chunk.choices:
-                            continue
-                        delta = chunk.choices[0].delta
-                        token = (getattr(delta, "content", None) or "")
-                        if token:
-                            parts.append(token)
-                            on_token(token)
-                    return "".join(parts), tool_trace
-                except Exception:
-                    # Fall back to the non-streamed answer
-                    pass
             content = (msg.content or "") or (getattr(msg, "reasoning_content", "") or "")
+            # If a streaming sink is set, emit the answer in word-sized chunks
+            # so the frontend can render progressively. This isn't *real* token
+            # streaming (the model already finished) — but the perceived effect
+            # is the same and it lets us reuse the UI's streaming code path
+            # without re-issuing an expensive duplicate request.
+            if on_token and content:
+                # split on whitespace but keep separators
+                import re as _re
+                words = _re.findall(r"\S+\s*", content)
+                for w in words:
+                    on_token(w)
             return content, tool_trace
 
         # Persist the assistant's tool-call message in the conversation so the
@@ -207,4 +192,9 @@ def reason(
     )
     msg = resp.choices[0].message
     content = (msg.content or "") or (getattr(msg, "reasoning_content", "") or "")
+    # Also emit chunked tokens for the budget-exhausted path
+    if on_token and content:
+        import re as _re
+        for w in _re.findall(r"\S+\s*", content):
+            on_token(w)
     return content, tool_trace
