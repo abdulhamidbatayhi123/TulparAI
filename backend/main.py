@@ -6,6 +6,7 @@ Run with:
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,11 @@ from backend.db.connection import init_db
 async def lifespan(app: FastAPI):
     # Bootstrap DB schema on first start (idempotent)
     init_db()
+
+    # Load anomaly detection model
+    from backend.anomaly.router import load_anomaly_model
+    load_anomaly_model()
+
     yield
 
 
@@ -45,6 +51,22 @@ app.include_router(chat_router)
 app.include_router(profile_router)
 app.include_router(logs_router)
 app.include_router(upload_router)
+
+# Mount anomaly detection router
+from backend.anomaly.router import router as anomaly_router
+app.include_router(anomaly_router)
+
+# Serve anomaly dashboard static assets
+from fastapi.staticfiles import StaticFiles
+_anomaly_dashboard_dir = os.path.join(
+    os.path.dirname(__file__), "anomaly", "dashboard"
+)
+if os.path.isdir(_anomaly_dashboard_dir):
+    app.mount(
+        "/anomaly-dashboard",
+        StaticFiles(directory=_anomaly_dashboard_dir, html=True),
+        name="anomaly-dashboard",
+    )
 
 
 @app.get("/health")

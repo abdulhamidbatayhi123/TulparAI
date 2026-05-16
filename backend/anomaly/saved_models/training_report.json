@@ -1,0 +1,29 @@
+{
+  "epochs_trained": 98,
+  "best_epoch": 88,
+  "best_val_loss": 0.271103,
+  "threshold": 0.409787,
+  "elapsed_seconds": 23.1,
+  "evaluation": {
+    "total_test": 240,
+    "accuracy": 93.8,
+    "precision": 73.2,
+    "recall": 100.0,
+    "f1": 84.5,
+    "tp": 41,
+    "fp": 15,
+    "tn": 184,
+    "fn": 0
+  },
+  "anomaly_types": {
+    "training_irregular": 2,
+    "calorie_excess": 2,
+    "dehydration": 6,
+    "macro_imbalance": 14,
+    "bad_meal_timing": 10,
+    "under_recovery": 12,
+    "wrong_training": 5,
+    "overtraining": 3,
+    "calorie_deficit": 2
+  }
+}

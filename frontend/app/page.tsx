@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   Plus, UserCog, UploadCloud, PanelLeft,
-  BookOpen, Trash2, Image as ImageIcon, Mic, Send,
-  Thermometer, Pill, Moon, Flame, Zap, X,
+  Trash2, Image as ImageIcon, Mic, Send,
+  Apple, HeartPulse, Moon, Activity, Sparkles, ShieldCheck, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +14,9 @@ import {
   type ChatStreamEvent, type Source, type ToolCall,
 } from "@/lib/api";
 import { startVoice, isVoiceSupported, type VoiceHandle } from "@/lib/speech";
+import { useLang, useCopy } from "@/lib/lang";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import { UploadDialog } from "@/components/UploadDialog";
 import { AgentBadges } from "@/components/AgentBadges";
@@ -33,12 +36,15 @@ type Msg = {
   latencyMs?: number;
 };
 
+// Single-user app: one default athlete identity, overridable at build time.
+// The profile data behind this ID is what onboarding fills in.
 const ATHLETE_ID =
   process.env.NEXT_PUBLIC_DEFAULT_ATHLETE || "ahmet";
-const LANGUAGE: "tr" | "en" =
-  (process.env.NEXT_PUBLIC_DEFAULT_LANG as "tr" | "en") || "tr";
 
 export default function Home() {
+  const { lang } = useLang();
+  const c = useCopy();
+
   const [message, setMessage] = useState("");
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -65,14 +71,14 @@ export default function Home() {
       .catch(() => setBackendOnline(false));
   }, []);
 
-  // Load profile + personal doc count whenever athlete changes (or after edits)
+  // Load profile + personal doc count (re-runs after profile edits via onSaved)
   const refreshProfile = () => {
     getProfile(ATHLETE_ID).then(setProfile).catch(() => setProfile(null));
     listPersonalDocs(ATHLETE_ID)
       .then((r) => setPersonalDocCount(r.files?.length || 0))
       .catch(() => setPersonalDocCount(0));
   };
-  useEffect(() => { refreshProfile(); }, []);
+  useEffect(() => { refreshProfile(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -98,12 +104,12 @@ export default function Home() {
       return;
     }
     if (!isVoiceSupported()) {
-      alert("Tarayıcınız sesli giriş desteklemiyor (Chrome / Edge / Safari önerilir).");
+      alert(c.voiceUnsupported);
       return;
     }
     setVoiceState("listening");
     voiceRef.current = startVoice({
-      lang: LANGUAGE === "en" ? "en-US" : "tr-TR",
+      lang: lang === "en" ? "en-US" : "tr-TR",
       onPartial: (text) => setMessage(text),
       onFinal: (text) => {
         setMessage(text);
@@ -139,7 +145,7 @@ export default function Home() {
 
     setMessages((m) => [
       ...m,
-      { role: "user", text: text || "[Resim eklendi]" },
+      { role: "user", text: text || c.imageAttached },
       { role: "assistant", text: "", liveTools: [] },
     ]);
 
@@ -149,8 +155,8 @@ export default function Home() {
     cancelRef.current = openChatStream(
       {
         athlete_id: ATHLETE_ID,
-        message: text || "Bu görseli analiz et",
-        language: LANGUAGE,
+        message: text || c.autoImagePrompt,
+        language: lang,
         image_base64: imageBase64,
       },
       (ev: ChatStreamEvent) => {
@@ -197,7 +203,7 @@ export default function Home() {
             const copy = [...m];
             copy[copy.length - 1] = {
               role: "assistant",
-              text: `⚠ Hata: ${ev.message}`,
+              text: `${c.errorPrefix}${ev.message}`,
             };
             return copy;
           });
@@ -211,11 +217,11 @@ export default function Home() {
 
   const handleFilePick = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      alert("Sadece resim dosyaları desteklenir (jpg / png / webp).");
+      alert(c.imageOnly);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("Resim çok büyük (maks 5 MB).");
+      alert(c.imageTooBig);
       return;
     }
     const b64 = await fileToBase64(file);
@@ -239,44 +245,53 @@ export default function Home() {
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
       <aside
-        className={`${isSidebarOpen ? "w-64" : "w-0"} transition-all duration-300 ease-in-out flex flex-col border-r border-border bg-card/30 backdrop-blur-md overflow-hidden shrink-0`}
+        className={`relative z-10 ${isSidebarOpen ? "w-64" : "w-0"} transition-all duration-300 ease-in-out flex flex-col border-r border-border bg-card/40 backdrop-blur-md overflow-hidden shrink-0`}
       >
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">
-              T
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-9 h-9 rounded-lg overflow-hidden ring-1 ring-border bg-white flex items-center justify-center shadow-sm">
+              {/* The Pegasus mark — red on white, works on both themes thanks to the small white card. */}
+              <Image
+                src="/logo.jpeg"
+                alt="TulparAI logosu"
+                width={36}
+                height={36}
+                className="object-contain"
+                priority
+              />
             </div>
-            <h1 className="font-bold text-xl tracking-tight text-foreground whitespace-nowrap">
-              Tulpar<span className="text-primary">AI</span>
+            <h1 className="font-display text-2xl font-medium tracking-tight text-foreground whitespace-nowrap leading-none">
+              Tulpar<span className="italic text-primary">AI</span>
             </h1>
           </div>
         </div>
 
-        <div className="p-4 flex-1 overflow-y-auto space-y-6">
+        <div className="p-4 flex-1 overflow-y-auto space-y-5">
           <Button
             className="w-full justify-start gap-2"
             variant="outline"
             onClick={clearChat}
           >
             <Plus className="w-4 h-4" />
-            New Conversation
+            {c.newChat}
           </Button>
 
-          {/* Athlete Profile */}
+          {/* Single-user profile card.
+              Onboarding fills these fields conversationally on first chat. */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Sporcu Profili
+              {c.yourProfile}
             </h3>
-            <div className="p-3 rounded-lg bg-background border border-border">
-              <div className="mb-2">
-                <h4 className="text-sm font-semibold text-foreground">
+            <div className="p-3 rounded-lg bg-background/60 border border-border space-y-2.5">
+              <div>
+                <h4 className="text-sm font-semibold text-foreground leading-tight">
                   {(profile?.name as string) || "—"}
                 </h4>
-                <p className="text-xs text-muted-foreground capitalize">
+                <p className="text-xs text-muted-foreground capitalize mt-0.5">
                   {profile ? (
                     <>
-                      {(profile.sport as string) || "?"}
+                      {(profile.sport as string) || "—"}
                       {(() => {
                         const sp = profile.sport_profile as Record<string, unknown> | undefined;
                         const detail = sp?.position || sp?.weight_class;
@@ -286,50 +301,28 @@ export default function Home() {
                         ? ` · ${profile.training_phase as string}`
                         : ""}
                     </>
-                  ) : "Yükleniyor..."}
+                  ) : c.loading}
                 </p>
+                {personalDocCount > 0 && (
+                  <p className="text-[10px] text-muted-foreground/70 mt-1 font-mono">
+                    {personalDocCount} {lang === "tr" ? "kişisel doküman indekslendi" : "personal docs indexed"}
+                  </p>
+                )}
               </div>
-              <ProfileDialog athleteId={ATHLETE_ID} onSaved={refreshProfile}>
-                <Button variant="secondary" size="sm" className="w-full text-xs h-8 gap-2">
-                  <UserCog className="w-3.5 h-3.5" />
-                  Profili Düzenle
-                </Button>
-              </ProfileDialog>
-            </div>
-          </div>
-
-          {/* Knowledge Base */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Bilgi Tabanı
-            </h3>
-            <div className="flex gap-2">
-              <div className="flex-1 p-2 rounded-lg bg-background border border-border flex flex-col items-center">
-                <span className="text-lg font-bold text-foreground">7</span>
-                <span className="text-[10px] text-muted-foreground uppercase">Tools</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <ProfileDialog athleteId={ATHLETE_ID} onSaved={refreshProfile}>
+                  <Button variant="secondary" size="sm" className="text-xs h-8 gap-1.5">
+                    <UserCog className="w-3.5 h-3.5" />
+                    {lang === "tr" ? "Düzenle" : "Edit"}
+                  </Button>
+                </ProfileDialog>
+                <UploadDialog athleteId={ATHLETE_ID} onUploaded={refreshProfile}>
+                  <Button variant="secondary" size="sm" className="text-xs h-8 gap-1.5">
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    {lang === "tr" ? "Yükle" : "Upload"}
+                  </Button>
+                </UploadDialog>
               </div>
-              <div className="flex-1 p-2 rounded-lg bg-background border border-border flex flex-col items-center">
-                <span className="text-lg font-bold text-foreground">{personalDocCount}</span>
-                <span className="text-[10px] text-muted-foreground uppercase">Senin Dök.</span>
-              </div>
-            </div>
-            <UploadDialog athleteId={ATHLETE_ID} onUploaded={refreshProfile}>
-              <Button variant="secondary" size="sm" className="w-full text-xs h-8 gap-2">
-                <UploadCloud className="w-3.5 h-3.5" />
-                Doküman Yükle
-              </Button>
-            </UploadDialog>
-          </div>
-
-          {/* Recents */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Recents
-            </h3>
-            <div className="text-sm text-muted-foreground text-center py-4">
-              {messages.length > 0
-                ? `${Math.floor(messages.length / 2)} message(s) in this chat`
-                : "No recent chats"}
             </div>
           </div>
         </div>
@@ -346,46 +339,54 @@ export default function Home() {
             }`}
           ></div>
           {backendOnline === true
-            ? `NVIDIA · ${modelInfo}`
+            ? c.backendOnline(modelInfo)
             : backendOnline === false
-            ? "Backend Offline"
-            : "Checking..."}
+            ? c.backendOffline
+            : c.backendChecking}
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full min-w-0">
+      <main className="relative z-10 flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
         <header className="h-16 flex items-center justify-between px-4 border-b border-border bg-background/50 backdrop-blur-sm">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!isSidebarOpen)}
               className="text-muted-foreground hover:text-foreground"
+              aria-label={c.toggleSidebar}
             >
               <PanelLeft className="w-5 h-5" />
             </Button>
-            <div className="font-medium text-foreground">
-              TulparAI Sports Assistant
+            <div className="flex items-baseline gap-2">
+              <span className="font-display text-lg font-medium tracking-tight text-foreground">
+                TulparAI
+              </span>
+              <span className="hidden sm:inline text-[11px] tracking-widest uppercase text-muted-foreground">
+                {c.brandTagline}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {/* Verified-AI badge — pitch shorthand for the verifier guardrail */}
+            <span
+              className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-500"
+              title={`${c.verifiedAI} · ${lang === "tr" ? "her [Tx] iddiası kaynak ile eşleştirilir" : "every [Tx] claim is matched to its source"}`}
+            >
+              <ShieldCheck className="w-3 h-3" />
+              {c.verifiedAI}
+            </span>
+            <LanguageToggle />
             <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
-              title="View Sources"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <BookOpen className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Clear Chat"
+              title={c.clearChat}
               className="text-muted-foreground hover:text-destructive"
               onClick={clearChat}
+              aria-label={c.clearChat}
             >
               <Trash2 className="w-5 h-5" />
             </Button>
@@ -395,36 +396,72 @@ export default function Home() {
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col">
           {messages.length === 0 ? (
-            /* Welcome Screen */
-            <div className="flex-1 flex flex-col items-center justify-center max-w-3xl mx-auto w-full">
-              <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-6 border border-primary/30">
-                <Zap className="w-8 h-8 text-primary" />
+            /* Welcome Screen — the hero moment of the demo */
+            <div className="flex-1 flex flex-col items-center justify-center max-w-3xl mx-auto w-full px-2">
+              {/* Pegasus mark — the brand at hero scale */}
+              <div className="relative mb-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700">
+                <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-1 ring-border bg-white flex items-center justify-center shadow-sm">
+                  <Image
+                    src="/logo.jpeg"
+                    alt="TulparAI"
+                    width={96}
+                    height={96}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+                {/* Subtle glow ring behind the mark */}
+                <div className="absolute inset-0 -z-10 rounded-2xl bg-primary/20 blur-2xl motion-safe:animate-pulse" />
               </div>
-              <h2 className="text-3xl font-bold text-foreground mb-3 text-center">
-                Welcome to <span className="text-primary">TulparAI</span>
+
+              {/* Eyebrow tag */}
+              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-primary">
+                <Sparkles className="w-3 h-3" />
+                <span>{c.welcomeEyebrow}</span>
+              </div>
+
+              {/* Display headline — invites the user, not a slogan. Fraunces handles
+                  Turkish glyphs (ş, ç, ğ) cleanly. */}
+              <h2 className="font-display text-5xl md:text-6xl font-medium tracking-tight text-foreground text-center leading-[1.05] mb-5 max-w-2xl">
+                {c.welcomeHeadline}
               </h2>
-              <p className="text-muted-foreground text-center mb-10 max-w-lg">
-                Doğrulanmış kaynaklarla cevap veren AI antrenör. Halüsinasyon yok —
-                her iddia [Tx] etiketiyle kanıtlanır.
+
+              <p className="text-muted-foreground text-center text-[15px] md:text-base mb-10 max-w-xl leading-relaxed">
+                {c.welcomeSub}
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+              {/* Example prompts — quick-starts that hit real sport-KB topics. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
                 {[
-                  { icon: Thermometer, text: "Yarın akşam maç var, ne yemeliyim?" },
-                  { icon: Pill, text: "Maç sonrası iyileşme için en iyi besinler nedir?" },
-                  { icon: Moon, text: "Performansım için günde kaç saat uyumalıyım?" },
-                  { icon: Flame, text: "Forvet olarak hız çalışmaları haftada kaç kez?" },
+                  { icon: Apple,      label: c.exNutritionLabel, text: c.exNutritionText },
+                  { icon: HeartPulse, label: c.exRecoveryLabel,  text: c.exRecoveryText  },
+                  { icon: Moon,       label: c.exSleepLabel,     text: c.exSleepText     },
+                  { icon: Activity,   label: c.exTrainingLabel,  text: c.exTrainingText  },
                 ].map((item, i) => (
-                  <div
+                  <button
                     key={i}
+                    type="button"
                     onClick={() => setQuery(item.text)}
-                    className="p-4 rounded-xl border border-border bg-card/50 hover:bg-card hover:border-primary/50 cursor-pointer transition-all flex items-start gap-3 group"
+                    style={{ animationDelay: `${i * 60}ms` }}
+                    className="group text-left p-3.5 rounded-xl border border-border bg-card/40 hover:bg-card hover:border-primary/40 cursor-pointer transition-all flex items-start gap-3 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500"
                   >
-                    <item.icon className="w-5 h-5 text-muted-foreground group-hover:text-primary mt-0.5 shrink-0" />
-                    <p className="text-sm text-foreground">{item.text}</p>
-                  </div>
+                    <div className="shrink-0 w-9 h-9 rounded-lg bg-background border border-border flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/40 transition-colors">
+                      <item.icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground group-hover:text-primary/70 transition-colors mb-0.5">
+                        {item.label}
+                      </div>
+                      <p className="text-sm text-foreground leading-snug">{item.text}</p>
+                    </div>
+                  </button>
                 ))}
               </div>
+
+              {/* Tiny infra line — pitch credibility without being heavy */}
+              <p className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70 text-center">
+                {c.welcomeInfraLine}
+              </p>
             </div>
           ) : (
             /* Chat messages */
@@ -462,7 +499,7 @@ export default function Home() {
                       {m.text ||
                         (busy && i === messages.length - 1 ? (
                           <span className="text-muted-foreground italic">
-                            Düşünüyorum
+                            {c.thinking}
                             <span className="animate-pulse">...</span>
                           </span>
                         ) : (
@@ -522,7 +559,7 @@ export default function Home() {
                   {pendingImage.name}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  Görsel TulparAI tarafından analiz edilecek (vision modeli)
+                  {c.imagePreviewHint}
                 </div>
               </div>
               <Button
@@ -530,7 +567,7 @@ export default function Home() {
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => setPendingImage(null)}
-                title="Resmi kaldır"
+                title={lang === "tr" ? "Resmi kaldır" : "Remove image"}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -557,7 +594,7 @@ export default function Home() {
               className="shrink-0 text-muted-foreground hover:text-primary rounded-xl h-10 w-10"
               onClick={() => fileInputRef.current?.click()}
               disabled={busy}
-              title="Resim ekle (yemek, sakatlık, antrenman pozu)"
+              title={c.imageTooltip}
             >
               <ImageIcon className="w-5 h-5" />
             </Button>
@@ -568,10 +605,10 @@ export default function Home() {
               onKeyDown={onKeyDown}
               placeholder={
                 busy
-                  ? "TulparAI düşünüyor..."
+                  ? c.inputPlaceholderBusy
                   : pendingImage
-                  ? "Görsel hakkında ne sormak istersin? (boş bırak = otomatik analiz)"
-                  : "TulparAI'ye antrenmanın hakkında sor..."
+                  ? c.inputPlaceholderImage
+                  : c.inputPlaceholder
               }
               disabled={busy}
               className="min-h-[40px] max-h-[200px] border-0 focus-visible:ring-0 px-0 py-2.5 resize-none bg-transparent"
@@ -589,7 +626,7 @@ export default function Home() {
                     ? "bg-destructive/20 text-destructive animate-pulse"
                     : "text-muted-foreground hover:text-primary"
                 }`}
-                title={voiceState === "listening" ? "Dinleniyor — durdur" : "Sesli giriş (Türkçe)"}
+                title={voiceState === "listening" ? c.voiceTooltipListening : c.voiceTooltipIdle}
               >
                 <Mic className="w-5 h-5" />
               </Button>

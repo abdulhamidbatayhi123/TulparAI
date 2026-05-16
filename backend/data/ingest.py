@@ -100,8 +100,15 @@ def _classify_authority(filename_stem: str) -> tuple[str, float]:
     return "federation", 0.85  # default trust
 
 
-def _chunk_id(source_key: str, chunk: str) -> str:
-    return hashlib.sha1(f"{source_key}::{chunk}".encode("utf-8")).hexdigest()[:16]
+def _chunk_id(source_key: str, chunk_idx: int, chunk: str) -> str:
+    """Hash source + chunk index + text → 16-char ID.
+
+    Including `chunk_idx` prevents duplicate-ID collisions when a single PDF
+    contains repeated text (e.g. headers, empty sections) that produce
+    identical chunks. Idempotent: re-running the same file in the same order
+    yields the same IDs.
+    """
+    return hashlib.sha1(f"{source_key}::{chunk_idx}::{chunk}".encode("utf-8")).hexdigest()[:16]
 
 
 def ingest_sport(sport: str, source_dir: Path) -> dict:
@@ -144,8 +151,8 @@ def ingest_sport(sport: str, source_dir: Path) -> dict:
             target=settings.chunk_size,
             overlap=settings.chunk_overlap,
         )
-        for c in chunks:
-            cid = _chunk_id(path.name, c)
+        for chunk_idx, c in enumerate(chunks):
+            cid = _chunk_id(path.name, chunk_idx, c)
             all_ids.append(cid)
             all_texts.append(c)
             all_metas.append({

@@ -39,8 +39,39 @@ def _build_profile_block(profile: dict) -> str:
     )
 
 
+# Fields that need to be filled before we consider the profile "ready" enough
+# to skip onboarding.  We're permissive — if these 5 are set the agent can
+# personalise well; everything else is gravy.
+_PROFILE_CORE_FIELDS = ("name", "sport", "age", "height_cm", "weight_kg")
+
+
+def _profile_status(profile: dict, language: str) -> str:
+    """Return a one-line directive for the system prompt that tells the LLM
+    whether to run onboarding or to act normally."""
+    missing: list[str] = []
+    for f in _PROFILE_CORE_FIELDS:
+        v = profile.get(f)
+        if v is None or v == "" or v == "-":
+            missing.append(f)
+    # sport_profile is a JSON dict — treat empty dict as missing
+    sp = profile.get("sport_profile") or {}
+    if not sp:
+        missing.append("sport_profile")
+
+    if not missing:
+        return ("TAMAM — profil dolu, doğrudan hizmete geç."
+                if language == "tr"
+                else "READY — profile is complete, proceed normally.")
+
+    fields_str = ", ".join(missing)
+    if language == "tr":
+        return f"EKSİK — şu alanlar eksik: {fields_str}. Adım adım sor, update_profile ile kaydet."
+    return f"INCOMPLETE — these fields are missing: {fields_str}. Ask step-by-step and persist via update_profile."
+
+
 def _build_system_prompt(
     profile: dict,
+    athlete_id: str,
     recent_activity: str,
     history_summary: str,
     weather: str,
@@ -49,7 +80,9 @@ def _build_system_prompt(
 ) -> str:
     prompts = get_prompts(language)
     return prompts.REASONER_SYSTEM_TEMPLATE.format(
+        athlete_id=athlete_id,
         profile_block=_build_profile_block(profile),
+        profile_status=_profile_status(profile, language),
         activity_block=recent_activity or "(no recent activity)",
         date=date,
         city=profile.get("city", "Istanbul"),
@@ -61,6 +94,7 @@ def _build_system_prompt(
 def reason(
     user_message: str,
     profile: dict,
+    athlete_id: str = "",
     recent_activity: str = "",
     history_summary: str = "",
     weather: str = "",
@@ -77,7 +111,7 @@ def reason(
     The answer's [T1][T2]... markers correspond to this list (1-indexed).
     """
     sys_prompt = _build_system_prompt(
-        profile, recent_activity, history_summary, weather, date, language
+        profile, athlete_id, recent_activity, history_summary, weather, date, language
     )
     messages: list[dict] = [
         {"role": "system", "content": sys_prompt},
