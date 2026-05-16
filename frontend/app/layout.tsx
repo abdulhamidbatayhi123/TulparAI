@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { LanguageProvider } from "@/lib/lang";
 
 // Body — Geist Sans (Vercel, modern geometric, full latin-ext for Turkish chars).
 const geist = Geist({
@@ -27,6 +28,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: "TulparAI — Türk Sporcular için Doğrulanmış AI Antrenör",
   description:
     "Doğrulanmış, kişiselleştirilmiş AI antrenör + diyetisyen. " +
@@ -54,7 +56,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col font-sans">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <LanguageProvider>{children}</LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

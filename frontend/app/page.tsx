@@ -14,8 +14,9 @@ import {
   type ChatStreamEvent, type Source, type ToolCall,
 } from "@/lib/api";
 import { startVoice, isVoiceSupported, type VoiceHandle } from "@/lib/speech";
-import { cn } from "@/lib/utils";
+import { useLang, useCopy } from "@/lib/lang";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { ProfileDialog } from "@/components/ProfileDialog";
 import { UploadDialog } from "@/components/UploadDialog";
 import { AgentBadges } from "@/components/AgentBadges";
@@ -23,14 +24,6 @@ import { ToolCallChip } from "@/components/ToolCallChip";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { SourcesPanel } from "@/components/SourcesPanel";
 import { HowIAnsweredDrawer } from "@/components/HowIAnsweredDrawer";
-
-/** Demo athletes seeded by `backend/scripts/seed_demo.py` — the four-athletes-one-question wow. */
-const ATHLETES = [
-  { id: "ahmet",   name: "Ahmet",   emoji: "⚽", sport: "Futbol" },
-  { id: "ayse",    name: "Ayşe",    emoji: "🏐", sport: "Voleybol" },
-  { id: "mehmet",  name: "Mehmet",  emoji: "🤼", sport: "Güreş" },
-  { id: "naim",    name: "Naim",    emoji: "🏋️", sport: "Halter" },
-] as const;
 
 type Msg = {
   role: "user" | "assistant";
@@ -43,13 +36,15 @@ type Msg = {
   latencyMs?: number;
 };
 
-const DEFAULT_ATHLETE =
+// Single-user app: one default athlete identity, overridable at build time.
+// The profile data behind this ID is what onboarding fills in.
+const ATHLETE_ID =
   process.env.NEXT_PUBLIC_DEFAULT_ATHLETE || "ahmet";
-const LANGUAGE: "tr" | "en" =
-  (process.env.NEXT_PUBLIC_DEFAULT_LANG as "tr" | "en") || "tr";
-const ATHLETE_STORAGE_KEY = "tulparai.athleteId";
 
 export default function Home() {
+  const { lang } = useLang();
+  const c = useCopy();
+
   const [message, setMessage] = useState("");
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -57,20 +52,10 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const [modelInfo, setModelInfo] = useState<string>("");
-  const [athleteId, setAthleteId] = useState<string>(DEFAULT_ATHLETE);
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [personalDocCount, setPersonalDocCount] = useState<number>(0);
   const [pendingImage, setPendingImage] = useState<{ b64: string; preview: string; name: string } | null>(null);
   const [voiceState, setVoiceState] = useState<"idle" | "listening">("idle");
-
-  // Hydrate athlete from localStorage on mount (avoids SSR/CSR mismatch)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(ATHLETE_STORAGE_KEY);
-    if (saved && ATHLETES.some((a) => a.id === saved)) {
-      setAthleteId(saved);
-    }
-  }, []);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cancelRef = useRef<(() => void) | null>(null);
@@ -86,15 +71,14 @@ export default function Home() {
       .catch(() => setBackendOnline(false));
   }, []);
 
-  // Load profile + personal doc count whenever athlete changes (or after edits)
+  // Load profile + personal doc count (re-runs after profile edits via onSaved)
   const refreshProfile = () => {
-    getProfile(athleteId).then(setProfile).catch(() => setProfile(null));
-    listPersonalDocs(athleteId)
+    getProfile(ATHLETE_ID).then(setProfile).catch(() => setProfile(null));
+    listPersonalDocs(ATHLETE_ID)
       .then((r) => setPersonalDocCount(r.files?.length || 0))
       .catch(() => setPersonalDocCount(0));
   };
-  // Re-fetch whenever the active athlete changes
-  useEffect(() => { refreshProfile(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [athleteId]);
+  useEffect(() => { refreshProfile(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,18 +97,6 @@ export default function Home() {
     setBusy(false);
   };
 
-  // Switch the active athlete — clears chat so context doesn't bleed across personas,
-  // persists the choice to localStorage, and triggers a profile re-fetch via the
-  // `[athleteId]` effect above. The four-sporcular-aynı-soru demo is one click each.
-  const switchAthlete = (id: string) => {
-    if (id === athleteId || busy) return;
-    setAthleteId(id);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(ATHLETE_STORAGE_KEY, id);
-    }
-    clearChat();
-  };
-
   const toggleVoice = () => {
     if (voiceState === "listening") {
       voiceRef.current?.stop();
@@ -132,12 +104,12 @@ export default function Home() {
       return;
     }
     if (!isVoiceSupported()) {
-      alert("Tarayıcınız sesli giriş desteklemiyor (Chrome / Edge / Safari önerilir).");
+      alert(c.voiceUnsupported);
       return;
     }
     setVoiceState("listening");
     voiceRef.current = startVoice({
-      lang: LANGUAGE === "en" ? "en-US" : "tr-TR",
+      lang: lang === "en" ? "en-US" : "tr-TR",
       onPartial: (text) => setMessage(text),
       onFinal: (text) => {
         setMessage(text);
@@ -173,7 +145,7 @@ export default function Home() {
 
     setMessages((m) => [
       ...m,
-      { role: "user", text: text || "[Resim eklendi]" },
+      { role: "user", text: text || c.imageAttached },
       { role: "assistant", text: "", liveTools: [] },
     ]);
 
@@ -182,9 +154,9 @@ export default function Home() {
 
     cancelRef.current = openChatStream(
       {
-        athlete_id: athleteId,
-        message: text || "Bu görseli analiz et",
-        language: LANGUAGE,
+        athlete_id: ATHLETE_ID,
+        message: text || c.autoImagePrompt,
+        language: lang,
         image_base64: imageBase64,
       },
       (ev: ChatStreamEvent) => {
@@ -231,7 +203,7 @@ export default function Home() {
             const copy = [...m];
             copy[copy.length - 1] = {
               role: "assistant",
-              text: `⚠ Hata: ${ev.message}`,
+              text: `${c.errorPrefix}${ev.message}`,
             };
             return copy;
           });
@@ -245,11 +217,11 @@ export default function Home() {
 
   const handleFilePick = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      alert("Sadece resim dosyaları desteklenir (jpg / png / webp).");
+      alert(c.imageOnly);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("Resim çok büyük (maks 5 MB).");
+      alert(c.imageTooBig);
       return;
     }
     const b64 = await fileToBase64(file);
@@ -295,73 +267,31 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="p-4 flex-1 overflow-y-auto space-y-6">
+        <div className="p-4 flex-1 overflow-y-auto space-y-5">
           <Button
             className="w-full justify-start gap-2"
             variant="outline"
             onClick={clearChat}
           >
             <Plus className="w-4 h-4" />
-            Yeni Sohbet
+            {c.newChat}
           </Button>
 
-          {/* Athlete switcher — the live demo magic.
-              4 sporcular, tek tıkla geçiş. Aynı soru sorulduğunda kişiselleştirme görünür. */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-              <span>Demo Sporcuları</span>
-              <span className="text-[9px] font-mono normal-case tracking-normal text-muted-foreground/60">
-                ↻ aynı soru
-              </span>
-            </h3>
-            <div className="grid grid-cols-2 gap-1.5">
-              {ATHLETES.map((a) => {
-                const active = a.id === athleteId;
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => switchAthlete(a.id)}
-                    disabled={busy}
-                    title={busy ? "Cevap akarken geçiş yapılamaz" : `${a.name} (${a.sport})`}
-                    className={cn(
-                      "group relative rounded-lg border p-2 flex flex-col items-center gap-0.5 transition-all",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      active
-                        ? "border-primary/60 bg-primary/8 ring-1 ring-primary/30 shadow-[0_0_0_3px_oklch(from_var(--primary)_l_c_h/0.08)]"
-                        : "border-border bg-background/40 hover:border-primary/40 hover:bg-card/60"
-                    )}
-                  >
-                    <span className="text-xl leading-none" aria-hidden="true">{a.emoji}</span>
-                    <span className={cn("text-[11px] font-semibold leading-tight", active && "text-primary")}>
-                      {a.name}
-                    </span>
-                    <span className="text-[8.5px] uppercase tracking-[0.12em] text-muted-foreground leading-tight">
-                      {a.sport}
-                    </span>
-                    {active && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary ring-2 ring-background" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Active athlete details */}
+          {/* Single-user profile card.
+              Onboarding fills these fields conversationally on first chat. */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Aktif Profil
+              {c.yourProfile}
             </h3>
-            <div className="p-3 rounded-lg bg-background/60 border border-border">
-              <div className="mb-2">
+            <div className="p-3 rounded-lg bg-background/60 border border-border space-y-2.5">
+              <div>
                 <h4 className="text-sm font-semibold text-foreground leading-tight">
                   {(profile?.name as string) || "—"}
                 </h4>
                 <p className="text-xs text-muted-foreground capitalize mt-0.5">
                   {profile ? (
                     <>
-                      {(profile.sport as string) || "?"}
+                      {(profile.sport as string) || "—"}
                       {(() => {
                         const sp = profile.sport_profile as Record<string, unknown> | undefined;
                         const detail = sp?.position || sp?.weight_class;
@@ -371,50 +301,28 @@ export default function Home() {
                         ? ` · ${profile.training_phase as string}`
                         : ""}
                     </>
-                  ) : "Yükleniyor..."}
+                  ) : c.loading}
                 </p>
+                {personalDocCount > 0 && (
+                  <p className="text-[10px] text-muted-foreground/70 mt-1 font-mono">
+                    {personalDocCount} {lang === "tr" ? "kişisel doküman indekslendi" : "personal docs indexed"}
+                  </p>
+                )}
               </div>
-              <ProfileDialog athleteId={athleteId} onSaved={refreshProfile}>
-                <Button variant="secondary" size="sm" className="w-full text-xs h-8 gap-2">
-                  <UserCog className="w-3.5 h-3.5" />
-                  Profili Düzenle
-                </Button>
-              </ProfileDialog>
-            </div>
-          </div>
-
-          {/* Knowledge Base */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Bilgi Tabanı
-            </h3>
-            <div className="flex gap-2">
-              <div className="flex-1 p-2 rounded-lg bg-background/60 border border-border flex flex-col items-center">
-                <span className="font-display text-xl font-medium text-foreground leading-none">7</span>
-                <span className="text-[10px] text-muted-foreground uppercase mt-1">Araç</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <ProfileDialog athleteId={ATHLETE_ID} onSaved={refreshProfile}>
+                  <Button variant="secondary" size="sm" className="text-xs h-8 gap-1.5">
+                    <UserCog className="w-3.5 h-3.5" />
+                    {lang === "tr" ? "Düzenle" : "Edit"}
+                  </Button>
+                </ProfileDialog>
+                <UploadDialog athleteId={ATHLETE_ID} onUploaded={refreshProfile}>
+                  <Button variant="secondary" size="sm" className="text-xs h-8 gap-1.5">
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    {lang === "tr" ? "Yükle" : "Upload"}
+                  </Button>
+                </UploadDialog>
               </div>
-              <div className="flex-1 p-2 rounded-lg bg-background/60 border border-border flex flex-col items-center">
-                <span className="font-display text-xl font-medium text-foreground leading-none">{personalDocCount}</span>
-                <span className="text-[10px] text-muted-foreground uppercase mt-1">Doküman</span>
-              </div>
-            </div>
-            <UploadDialog athleteId={athleteId} onUploaded={refreshProfile}>
-              <Button variant="secondary" size="sm" className="w-full text-xs h-8 gap-2">
-                <UploadCloud className="w-3.5 h-3.5" />
-                Doküman Yükle
-              </Button>
-            </UploadDialog>
-          </div>
-
-          {/* Recents */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Geçmiş
-            </h3>
-            <div className="text-sm text-muted-foreground text-center py-4">
-              {messages.length > 0
-                ? `Bu sohbette ${Math.floor(messages.length / 2)} mesaj`
-                : "Henüz sohbet yok"}
             </div>
           </div>
         </div>
@@ -431,10 +339,10 @@ export default function Home() {
             }`}
           ></div>
           {backendOnline === true
-            ? `NVIDIA · ${modelInfo}`
+            ? c.backendOnline(modelInfo)
             : backendOnline === false
-            ? "Backend Offline"
-            : "Checking..."}
+            ? c.backendOffline
+            : c.backendChecking}
         </div>
       </aside>
 
@@ -448,7 +356,7 @@ export default function Home() {
               size="icon"
               onClick={() => setSidebarOpen(!isSidebarOpen)}
               className="text-muted-foreground hover:text-foreground"
-              aria-label="Kenar çubuğunu aç/kapat"
+              aria-label={c.toggleSidebar}
             >
               <PanelLeft className="w-5 h-5" />
             </Button>
@@ -457,7 +365,7 @@ export default function Home() {
                 TulparAI
               </span>
               <span className="hidden sm:inline text-[11px] tracking-widest uppercase text-muted-foreground">
-                Spor Asistanı
+                {c.brandTagline}
               </span>
             </div>
           </div>
@@ -465,19 +373,20 @@ export default function Home() {
             {/* Verified-AI badge — pitch shorthand for the verifier guardrail */}
             <span
               className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-500"
-              title="Doğrulanmış AI · her [Tx] iddiası kaynak ile eşleştirilir"
+              title={`${c.verifiedAI} · ${lang === "tr" ? "her [Tx] iddiası kaynak ile eşleştirilir" : "every [Tx] claim is matched to its source"}`}
             >
               <ShieldCheck className="w-3 h-3" />
-              Doğrulanmış AI
+              {c.verifiedAI}
             </span>
+            <LanguageToggle />
             <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
-              title="Sohbeti temizle"
+              title={c.clearChat}
               className="text-muted-foreground hover:text-destructive"
               onClick={clearChat}
-              aria-label="Sohbeti temizle"
+              aria-label={c.clearChat}
             >
               <Trash2 className="w-5 h-5" />
             </Button>
@@ -508,47 +417,26 @@ export default function Home() {
               {/* Eyebrow tag */}
               <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-primary">
                 <Sparkles className="w-3 h-3" />
-                <span>4 ajan · 7 araç · doğrulanmış</span>
+                <span>{c.welcomeEyebrow}</span>
               </div>
 
-              {/* Display headline. Fraunces handles Turkish glyphs (ş, ç, ğ) cleanly. */}
-              <h2 className="font-display text-5xl md:text-6xl font-medium tracking-tight text-foreground text-center leading-[1.02] mb-5 max-w-2xl">
-                Türk sporcusunun{" "}
-                <span className="italic text-primary" style={{ fontFeatureSettings: '"ss01"' }}>
-                  doğrulanmış
-                </span>{" "}
-                AI antrenörü.
+              {/* Display headline — invites the user, not a slogan. Fraunces handles
+                  Turkish glyphs (ş, ç, ğ) cleanly. */}
+              <h2 className="font-display text-5xl md:text-6xl font-medium tracking-tight text-foreground text-center leading-[1.05] mb-5 max-w-2xl">
+                {c.welcomeHeadline}
               </h2>
 
               <p className="text-muted-foreground text-center text-[15px] md:text-base mb-10 max-w-xl leading-relaxed">
-                Her cümle bir tool çıktısıyla eşleşir, ardından bir Verifier modeli
-                kaynaksız iddiaları siler. Halüsinasyon bir slogan değil — uygulanan
-                bir kuraldır.
+                {c.welcomeSub}
               </p>
 
-              {/* Example prompts — each opens a real sport-KB question Ahmet would ask. */}
+              {/* Example prompts — quick-starts that hit real sport-KB topics. */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
                 {[
-                  {
-                    icon: Apple,
-                    label: "Beslenme",
-                    text: "Yarın akşam maç var, ne yemeliyim?",
-                  },
-                  {
-                    icon: HeartPulse,
-                    label: "İyileşme",
-                    text: "Maç sonrası iyileşme için en iyi besinler nedir?",
-                  },
-                  {
-                    icon: Moon,
-                    label: "Uyku",
-                    text: "Performansım için günde kaç saat uyumalıyım?",
-                  },
-                  {
-                    icon: Activity,
-                    label: "Antrenman",
-                    text: "Forvet olarak hız çalışmaları haftada kaç kez?",
-                  },
+                  { icon: Apple,      label: c.exNutritionLabel, text: c.exNutritionText },
+                  { icon: HeartPulse, label: c.exRecoveryLabel,  text: c.exRecoveryText  },
+                  { icon: Moon,       label: c.exSleepLabel,     text: c.exSleepText     },
+                  { icon: Activity,   label: c.exTrainingLabel,  text: c.exTrainingText  },
                 ].map((item, i) => (
                   <button
                     key={i}
@@ -572,7 +460,7 @@ export default function Home() {
 
               {/* Tiny infra line — pitch credibility without being heavy */}
               <p className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70 text-center">
-                NVIDIA Nemotron · Türksat altyapısı · Sıfır halüsinasyon
+                {c.welcomeInfraLine}
               </p>
             </div>
           ) : (
@@ -611,7 +499,7 @@ export default function Home() {
                       {m.text ||
                         (busy && i === messages.length - 1 ? (
                           <span className="text-muted-foreground italic">
-                            Düşünüyorum
+                            {c.thinking}
                             <span className="animate-pulse">...</span>
                           </span>
                         ) : (
@@ -671,7 +559,7 @@ export default function Home() {
                   {pendingImage.name}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  Görsel TulparAI tarafından analiz edilecek (vision modeli)
+                  {c.imagePreviewHint}
                 </div>
               </div>
               <Button
@@ -679,7 +567,7 @@ export default function Home() {
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => setPendingImage(null)}
-                title="Resmi kaldır"
+                title={lang === "tr" ? "Resmi kaldır" : "Remove image"}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -706,7 +594,7 @@ export default function Home() {
               className="shrink-0 text-muted-foreground hover:text-primary rounded-xl h-10 w-10"
               onClick={() => fileInputRef.current?.click()}
               disabled={busy}
-              title="Resim ekle (yemek, sakatlık, antrenman pozu)"
+              title={c.imageTooltip}
             >
               <ImageIcon className="w-5 h-5" />
             </Button>
@@ -717,10 +605,10 @@ export default function Home() {
               onKeyDown={onKeyDown}
               placeholder={
                 busy
-                  ? "TulparAI düşünüyor..."
+                  ? c.inputPlaceholderBusy
                   : pendingImage
-                  ? "Görsel hakkında ne sormak istersin? (boş bırak = otomatik analiz)"
-                  : "TulparAI'ye antrenmanın hakkında sor..."
+                  ? c.inputPlaceholderImage
+                  : c.inputPlaceholder
               }
               disabled={busy}
               className="min-h-[40px] max-h-[200px] border-0 focus-visible:ring-0 px-0 py-2.5 resize-none bg-transparent"
@@ -738,7 +626,7 @@ export default function Home() {
                     ? "bg-destructive/20 text-destructive animate-pulse"
                     : "text-muted-foreground hover:text-primary"
                 }`}
-                title={voiceState === "listening" ? "Dinleniyor — durdur" : "Sesli giriş (Türkçe)"}
+                title={voiceState === "listening" ? c.voiceTooltipListening : c.voiceTooltipIdle}
               >
                 <Mic className="w-5 h-5" />
               </Button>

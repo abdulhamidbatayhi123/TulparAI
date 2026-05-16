@@ -156,6 +156,7 @@ class Orchestrator:
                 answer, trace = reason(
                     user_message=message_with_image_hint,
                     profile=profile_for_reasoner,
+                    athlete_id=athlete_id,
                     recent_activity=recent_activity,
                     history_summary=history_summary,
                     weather=weather_str,

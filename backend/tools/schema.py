@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Any
 
-from backend.tools import kb_search, food_macros, calc_macros, weather, logger, web_search, vision
+from backend.tools import kb_search, food_macros, calc_macros, weather, logger, web_search, vision, profile_updater
 
 TOOL_SCHEMAS: list[dict] = [
     {
@@ -145,6 +145,43 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "update_profile",
+            "description": (
+                "Update one or more fields of the athlete's profile. Use this "
+                "during onboarding (when their name / sport / body metrics are "
+                "missing) or whenever the athlete reveals a new fact about "
+                "themselves (e.g. 'kilom 78kg', 'forvetim', 'şeker hastalığım var'). "
+                "Pass only the fields you're changing — the rest of the profile "
+                "stays intact. Profile facts are then injected into every future "
+                "Reasoner prompt, so the agent will remember them next turn."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "athlete_id": {
+                        "type": "string",
+                        "description": "The current athlete_id (passed in the profile block).",
+                    },
+                    "fields": {
+                        "type": "object",
+                        "description": (
+                            "Partial profile object. Allowed top-level keys: "
+                            "name, language, city, age, sex, height_cm, weight_kg, "
+                            "sport, sport_profile (dict with position / weight_class "
+                            "/ current_lifts etc.), training_phase, weekly_hours, "
+                            "training_days, primary_goal, diet_type, religious_fasting, "
+                            "conditions, medications, allergies, injury_history, "
+                            "current_injuries, specific_targets."
+                        ),
+                    },
+                },
+                "required": ["athlete_id", "fields"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "analyze_image",
             "description": (
                 "Analyze an attached image (meal photo, injury, training/form, body composition) "
@@ -181,6 +218,7 @@ DISPATCH: Dict[str, Callable[..., Any]] = {
     "log_session":          logger.write,
     "web_search_trusted":   web_search.search,
     "analyze_image":        vision.analyze,
+    "update_profile":       profile_updater.update_profile,
 }
 
 
