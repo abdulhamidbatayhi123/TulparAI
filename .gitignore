@@ -58,3 +58,6 @@ logs/
 # Local backups
 *.bak
 docs/demo-video-backup.mp4
+
+# KB snapshot for Brev (generated locally, not committed — too big and contains embedded data)
+kb_snapshot.tar.gz
