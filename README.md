@@ -11,7 +11,7 @@
   </p>
   
   <p>
-    <em>A multi-agent, tool-using, <b>citation-verified</b> AI adviser for Turkish athletes — built for the<br>
+    <em>A local multi-model multi-agent, tool-using, <b>citation-verified</b> AI adviser for Turkish athletes — built for the<br>
     <b>100 StartUP Bootcamp Hackathon (YTÜ × Türksat × NVIDIA), 15–17 May 2026.</b></em>
   </p>
   <p><b>Theme codes:</b> <code>A5 · B2 · C1 · C2 · C3 · C5 · C6 · C7 · D5 · D7</code></p>
@@ -181,11 +181,11 @@ Every model is pinned by `.env` key. Together, they form a highly efficient infe
 
 | Role | Model | Environment | Why this choice? |
 |---|---|---|---|
-| **Reasoner** | `nvidia/nemotron-3-super-120b-a12b` | `build.nvidia.com` | 120B-class MoE quality at low latency. Native tool-calling & multilingual. |
-| **Analyzer/Verifier** | `nvidia/nvidia-nemotron-nano-9b-v2` | `build.nvidia.com` | Extremely fast JSON-mode responses for intent extraction and claim-checking. |
+| **Reasoner** | `nvidia/nemotron-3-super-120b-a12b` |Local CPU/GPU | 120B-class MoE quality at low latency. Native tool-calling & multilingual. |
+| **Analyzer/Verifier** | `nvidia/nvidia-nemotron-nano-9b-v2` | Local CPU/GPU | Extremely fast JSON-mode responses for intent extraction and claim-checking. |
 | **Embedder** | `nvidia/nv-embedqa-e5-v5` | `build.nvidia.com` | 1024-dim multilingual embedder. TR query ↔ EN chunk works natively. |
 | **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Local CPU/GPU | High accuracy reranking of top-15 to top-5, applying our source authority multiplier. |
-| **Vision** | `meta/llama-3.2-90b-vision-instruct` | `build.nvidia.com` | Strong meal/form-check vision. |
+| **Vision** | `meta/llama-3.2-90b-vision-instruct` | Local CPU/GPU | Strong meal/form-check vision. |
 | **Anomaly** | Custom PyTorch Autoencoder | Local PyTorch | Learns individual user patterns efficiently. |
 
 *Why we didn't train our own 120B LLM in 38 hours: Our novelty is the **architecture**—tool-bound evidence markers, sport-filtered RAG, and parallel anomaly detection.*
@@ -209,7 +209,7 @@ Every model is pinned by `.env` key. Together, they form a highly efficient infe
 
 ## 💻 Tech Stack
 
-- **AI/LLM:** NVIDIA Nemotron (`build.nvidia.com`), OpenRouter Fallbacks
+- **AI/LLM:** multi-local model
 - **Backend:** Python 3.11, FastAPI, ChromaDB, SQLite, PyTorch, Scikit-Learn
 - **Frontend:** Next.js 16, React 19, Tailwind 4, Fraunces + Geist Fonts
 - **Deployment:** Vercel (Frontend), NVIDIA Brev Tunnel (Backend)
@@ -268,6 +268,8 @@ python -m backend.telegram_bot
 
 ## 👨‍💻 Team
 - **Abdulhamid Batayhi** — Architect / Backend / AI / Frontend / Data ([@abdulhamidbatayhi123](https://github.com/abdulhamidbatayhi123))
+    zahid sinan yilmaz
+    abdulrahman alshoura 
 
 > *Tulpar — the winged horse of Turkic mythology. Swift, fearless, and never lost.*
 
