@@ -47,6 +47,22 @@ _RE_IDENTITY = re.compile(
 # Match any [Tx] citation marker — verifier skipped if none present
 _RE_TX_MARKER = re.compile(r"\[T\d+\]")
 
+# Fields that must be filled before we treat the profile as "ready to use".
+# When any of these is empty/missing we drop into onboarding mode and skip
+# every fast-path so the Reasoner can ask the user step-by-step.
+_PROFILE_REQUIRED_FIELDS = ("name", "sport", "age", "height_cm", "weight_kg")
+
+
+def _is_profile_complete(profile: dict) -> bool:
+    for f in _PROFILE_REQUIRED_FIELDS:
+        v = profile.get(f)
+        if v is None or v == "" or v == "-":
+            return False
+    sp = profile.get("sport_profile") or {}
+    if not sp:
+        return False
+    return True
+
 
 class Orchestrator:
     """Stateful per-request orchestrator. Build one per request."""
@@ -68,9 +84,16 @@ class Orchestrator:
         language = profile.get("language", "tr")
         prompts = get_prompts(language)
 
+        # If the profile is incomplete we WANT the Reasoner to see the first
+        # message so it can run conversational onboarding (greet → ask name →
+        # …).  Skipping into the canned greeting would short-circuit that.
+        profile_is_complete = _is_profile_complete(profile)
+
         # ----- 0. REGEX FAST-PATH (no LLM, <50ms) -------------------------
-        # Skip only when no image attached — otherwise we always want vision.
-        if not image_base64:
+        # Only fires for complete profiles with no image.  First-time users
+        # whose profile is empty drop through to the Reasoner so onboarding
+        # can start from any input — including "merhaba".
+        if not image_base64 and profile_is_complete:
             stripped = (user_message or "").strip()
             if _RE_GREETING.match(stripped):
                 yield {"type": "done", "answer": prompts.FAST_PATH["greeting"],
@@ -93,8 +116,9 @@ class Orchestrator:
             prompts = get_prompts(language)
 
         # ----- 2. LLM Fast-path (intent-classified greetings) -------------
+        # Same gating — incomplete profile drops through to onboarding.
         intent = a.get("intent")
-        if intent in prompts.FAST_PATH and not image_base64:
+        if intent in prompts.FAST_PATH and not image_base64 and profile_is_complete:
             yield {
                 "type": "done",
                 "answer": prompts.FAST_PATH[intent],
