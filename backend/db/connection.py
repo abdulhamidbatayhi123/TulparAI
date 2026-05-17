@@ -32,7 +32,7 @@ def init_db() -> None:
     schema = _SCHEMA_PATH.read_text(encoding="utf-8")
     with get_connection() as conn:
         conn.executescript(schema)
-    print(f"✅ DB initialised at {settings.sqlite_path}")
+    print(f"DB initialised at {settings.sqlite_path}")
 
 
 if __name__ == "__main__":

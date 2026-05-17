@@ -141,10 +141,10 @@ export function UploadDialog({ athleteId, onUploaded, children }: Props) {
             </h3>
             <ul className="space-y-1 max-h-40 overflow-y-auto">
               {files.map((f) => (
-                <li key={f.source_name} className="flex items-center gap-2 text-sm rounded border border-border/60 bg-card/40 p-2">
+                <li key={f.source_name} className="flex items-center gap-2 text-sm rounded border border-border/60 bg-card/40 p-2 w-full min-w-0">
                   <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="truncate flex-1">{f.source_name}</span>
-                  <span className="text-xs text-muted-foreground">{f.chunks} chunk</span>
+                  <span className="truncate flex-1 min-w-0" title={f.source_name}>{f.source_name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{f.chunks} chunk</span>
                 </li>
               ))}
             </ul>
