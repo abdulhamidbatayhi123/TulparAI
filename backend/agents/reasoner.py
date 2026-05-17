@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Any
 
 from backend.llm.nvidia_client import chat
@@ -79,10 +80,23 @@ def _build_system_prompt(
     language: str,
 ) -> str:
     prompts = get_prompts(language)
+    status = _profile_status(profile, language)
+
+    # Conditional onboarding section — only injected when the profile is missing
+    # required fields.  For the common case (complete profile), this saves
+    # ~200 tokens per request, which shaves real time off the Reasoner's
+    # generation latency on every turn.
+    is_incomplete = status.startswith(("EKSİK", "INCOMPLETE"))
+    if is_incomplete:
+        onboarding_block = "\n" + prompts.REASONER_ONBOARDING_BLOCK + "\n"
+    else:
+        onboarding_block = ""
+
     return prompts.REASONER_SYSTEM_TEMPLATE.format(
         athlete_id=athlete_id,
         profile_block=_build_profile_block(profile),
-        profile_status=_profile_status(profile, language),
+        profile_status=status,
+        onboarding_block=onboarding_block,
         activity_block=recent_activity or "(no recent activity)",
         date=date,
         city=profile.get("city", "Istanbul"),
@@ -165,6 +179,8 @@ def reason(
             ],
         })
 
+        # ---- Pre-process tool calls (parse args, inject image) ----
+        parsed_calls: list[tuple[Any, str, dict]] = []  # [(tc, name, args), ...]
         for tc in tool_calls:
             name = tc.function.name
             try:
@@ -181,6 +197,14 @@ def reason(
                 ):
                     args["image"] = image_base64
 
+            parsed_calls.append((tc, name, args))
+
+        # ---- Execute tool calls (parallel when 2+) ----
+        # Each tool is I/O-bound (HTTP to NVIDIA / USDA / Tavily / OpenWeather)
+        # so threads beat sequential execution even under the GIL. We preserve
+        # the original LLM-emitted order so [T1][T2] markers in the answer
+        # still line up with the tool_trace indexes.
+        def _exec(name: str, args: dict) -> tuple[Any, int]:
             t0 = time.time()
             try:
                 fn = DISPATCH.get(name)
@@ -192,8 +216,17 @@ def reason(
                 result = {"error": f"bad args for {name}: {e}"}
             except Exception as e:
                 result = {"error": f"{type(e).__name__}: {e}"}
-            ms = int((time.time() - t0) * 1000)
+            return result, int((time.time() - t0) * 1000)
 
+        if len(parsed_calls) >= 2:
+            with ThreadPoolExecutor(max_workers=min(8, len(parsed_calls))) as pool:
+                futures = [pool.submit(_exec, name, args) for _, name, args in parsed_calls]
+                exec_results = [f.result() for f in futures]
+        else:
+            exec_results = [_exec(name, args) for _, name, args in parsed_calls]
+
+        # ---- Post-process: emit chips, append to trace + messages, in LLM order ----
+        for (tc, name, args), (result, ms) in zip(parsed_calls, exec_results):
             # Build a redacted args view (drop huge image base64 strings)
             args_for_trace = dict(args)
             if name == "analyze_image" and len(str(args_for_trace.get("image", ""))) > 200:
