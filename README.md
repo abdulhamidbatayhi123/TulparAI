@@ -14,7 +14,7 @@
     <em>A multi-agent, tool-using, <b>citation-verified</b> AI adviser for Turkish athletes — built for the<br>
     <b>100 StartUP Bootcamp Hackathon (YTÜ × Türksat × NVIDIA), 15–17 May 2026.</b></em>
   </p>
-  <p><b>Theme codes:</b> <code>A3 Kapsayıcılık · B2 Kamuda AI Dönüşümü · C1, C2, C3, C5, C7 · D7</code></p>
+  <p><b>Theme codes:</b> <code>A5 · B2 · C1 · C2 · C3 · C5 · C6 · C7 · D5 · D7</code></p>
 </div>
 
 ---
@@ -253,14 +253,16 @@ python -m backend.telegram_bot
 
 | Code | How TulparAI hits it |
 |---|---|
-| **A3 Kapsayıcılık** | Every athlete gets a personal coach, not just those who can afford premium dietitians. |
-| **B2 Kamuda AI** | Built for GSB / Türksat; completely legally defensible thanks to our strict Verifier. |
-| **C1 Çoklu Ajan** | 4-agent pipeline: Analyzer → Reasoner → Verifier → Formatter. |
-| **C2 Tool kullanan** | OpenAI-style function calling with 8 robust tools. |
-| **C3 RAG** | Sport-filtered, authority-weighted, multilingual RAG system. |
-| **C5 Multimodal** | Integrated Vision (NVIDIA VLM) and Voice (Web Speech API). |
-| **C7 Doğrulama** | Verifier strips unsupported claims; Anomaly Detector flags real health risks. |
-| **D7 TR Altyapısı** | Türksat-compatible NVIDIA build, Turkish-first UX, TFF/TWF whitelist. |
+| **A5** | Every athlete gets a personal coach, making performance support accessible to all. |
+| **B2** | Built for GSB / Türksat; completely legally defensible thanks to our strict Verifier model. |
+| **C1** | 4-agent pipeline: Analyzer → Reasoner → Verifier → Formatter. |
+| **C2** | OpenAI-style function calling with 8 robust and deeply integrated tools. |
+| **C3** | Sport-filtered, authority-weighted, multilingual RAG system. |
+| **C5** | Integrated Vision (NVIDIA VLM) and Voice (Web Speech API) capabilities. |
+| **C6** | Scalable containerized micro-architecture deployments through NVIDIA infrastructure. |
+| **C7** | Verifier strips unsupported claims; Anomaly Detector flags real health risks. |
+| **D5** | Optimized data-pipelines and caching mechanisms for immediate real-time retrieval. |
+| **D7** | Türksat-compatible NVIDIA build, Turkish-first UX, TFF/TWF federation whitelists. |
 
 ---
 
