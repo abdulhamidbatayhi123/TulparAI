@@ -34,9 +34,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Allow the explicit local dev origins from settings plus any tunnel domain
+# (Cloudflare trycloudflare.com, Brev brevlab.com, Vercel preview/prod). This
+# uses a regex so we don't have to redeploy whenever a tunnel URL changes.
+_explicit_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+_tunnel_origin_regex = (
+    r"^https?://(localhost(:\d+)?"
+    r"|127\.0\.0\.1(:\d+)?"
+    r"|[a-zA-Z0-9-]+\.trycloudflare\.com"
+    r"|[a-zA-Z0-9-]+\.brevlab\.com"
+    r"|[a-zA-Z0-9-]+\.vercel\.app)$"
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
+    allow_origins=_explicit_origins,
+    allow_origin_regex=_tunnel_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
