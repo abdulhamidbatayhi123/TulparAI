@@ -42,8 +42,8 @@ Deployed on Türksat-compatible NVIDIA infrastructure, TulparAI is ready for the
 > *Onboarding is natural and conversational. The multi-agent system uses RAG against a sport-filtered ChromaDB and verifies every claim.*
 
 ### 3. Telegram Bot Integration
-*(Please place your telegram bot image here as `docs/assets/telegram-bot.png`)*
-![Telegram Bot](docs/assets/telegram-bot.png)
+*(Please place your telegram bot image here as `docs/assets/telegram-bot.jpg`)*
+![Telegram Bot](docs/assets/telegram-bot.jpg)
 > *Multi-tenant Telegram integration allows athletes to log meals and workouts on the go, triggering the anomaly detector instantly.*
 
 ---
